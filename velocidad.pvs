@@ -1,0 +1,11 @@
+velocidad1: THEORY
+BEGIN
+
+  vr, vl, t: VAR nat
+	
+  masrapido: AXIOM vr > vl
+  tiempo: AXIOM t > 0
+
+  espacio: THEOREM (t * vr) > (t * vl)
+
+END velocidad1
