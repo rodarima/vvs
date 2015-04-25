@@ -1,0 +1,382 @@
+2015A25
+
+Para la resolución de la práctica voy a realizar un documento en el que iré 
+comentando los pasos que voy realizando.
+
+Comienzo con la primera sección, con el siguiente código:
+
+	#define NR	10
+	#define NW	10
+
+	#define wait(s) { atomic { s > 0; s-- } }
+	#define signal(s) { s++ }
+
+	byte canwrite = 1;
+	byte rmutex = 1;
+	byte readers = 0;
+
+	active [NW] proctype W()
+	{
+		do ::
+			wait(canwrite);
+	cs:		printf("Writer %d in critical\n", _pid);
+			signal(canwrite)
+			printf("Writer %d out critical\n", _pid);
+		od
+	}
+
+	active [NR] proctype R()
+	{
+		do ::
+
+			wait(rmutex);
+			readers++;
+			if
+			:: readers == 1 -> wait(canwrite);
+			:: else -> skip;
+			fi;
+			signal(rmutex);
+
+	cs:		printf("Reader %d in critical\n", _pid);
+
+			wait(rmutex);
+			readers--;
+			if
+			:: readers == 0 -> signal(canwrite);
+			:: else -> skip;
+			fi;
+			signal(rmutex)
+			printf("Reader %d out critical\n", _pid);
+
+		od
+	}
+
+Son dos procesos que tienen un bucle infinito, siguiendo el esquema propuesto.  
+
+
+Deadlock
+--------
+
+Primero comprobaré que nunca se producen bloqueos (deadlocks).
+
+	$ spin -a rw.pml
+
+	hint: this search is more efficient if pan.c is compiled -DSAFETY
+	error: max search depth too small
+
+	(Spin Version 6.4.3 -- 16 December 2014)
+		+ Partial Order Reduction
+
+	Full statespace search for:
+		never claim         	- (none specified)
+		assertion violations	+
+		acceptance   cycles 	- (not selected)
+		invalid end states	+
+
+	State-vector 172 byte, depth reached 9999, errors: 0
+	   113965 states, stored
+	   196640 states, matched
+	   310605 transitions (= stored+matched)
+		0 atomic steps
+	hash conflicts:    112534 (resolved)
+
+	Stats on memory usage (in Megabytes):
+	   21.737	equivalent memory usage for states (stored*(State-vector +
+	overhead))
+	    8.101	actual memory usage for states (compression: 37.27%)
+			state-vector as stored = 47 byte + 28 byte overhead
+	  128.000	memory used for hash table (-w24)
+	    0.534	memory used for DFS stack (-m10000)
+	  136.542	total actual memory usage
+
+
+	unreached in proctype W
+		rw.pml:19, state 12, "-end-"
+		(1 of 12 states)
+	unreached in proctype R
+		rw.pml:45, state 36, "-end-"
+		(1 of 36 states)
+
+	pan: elapsed time 2.05 seconds
+	pan: rate 55592.683 states/second
+
+Informa de que la profundidad de búsqueda es muy pequeña (9999). Aumentando x10, 
+tampoco es suficiente. Veamos con x100, acapara toda la RAM y no termina:
+
+	Depth=  885860 States=    1e+06 Transitions= 3.48e+06 Memory=   
+	250.254 t=     19.9 R=   5e+04
+	error: max search depth too small
+
+Probar a reducir NR y NW a 2:
+
+	hint: this search is more efficient if pan.c is compiled -DSAFETY
+
+	(Spin Version 6.4.3 -- 16 December 2014)
+		+ Partial Order Reduction
+
+	Full statespace search for:
+		never claim         	- (none specified)
+		assertion violations	+
+		acceptance   cycles 	- (not selected)
+		invalid end states	+
+
+	State-vector 44 byte, depth reached 177, errors: 0
+	      271 states, stored
+	      411 states, matched
+	      682 transitions (= stored+matched)
+		0 atomic steps
+	hash conflicts:         0 (resolved)
+
+	Stats on memory usage (in Megabytes):
+	    0.019	equivalent memory usage for states (stored*(State-vector + 
+	      overhead))
+	    0.287	actual memory usage for states
+	  128.000	memory used for hash table (-w24)
+	    0.534	memory used for DFS stack (-m10000)
+	  128.730	total actual memory usage
+
+
+	unreached in proctype W
+		rw.pml:19, state 12, "-end-"
+		(1 of 12 states)
+	unreached in proctype R
+		rw.pml:45, state 36, "-end-"
+		(1 of 36 states)
+
+	pan: elapsed time 0 seconds
+
+Ahora ha concluído satisfactoriamente. No se han producido errores. Comprobación 
+para NR = NW = 4:
+
+	State-vector 76 byte, depth reached 3020, errors: 0
+
+No se producen errores, así que se asume que con un número superior de 
+escritores o lectores no se producirán errores.
+
+
+Safety
+------
+
+Para asegurar la exclusión mútua, es necesario que se cumplan una serie de 
+restricciones:
+
+	Dos procesos escritores (W) nunca pueden encontrarse en la sección
+	crítica a la vez
+
+Para ello, emplearé la variable contador canwrite, que se decrementa cuando un 
+proceso escritor accede a la sección crítica, y se incrementa al terminar. Si se 
+ha decrementado dos veces, es que hay dos procesos en la sección crítica:
+
+	Nunca debe ocurrir que canwrite < 0
+
+	[] ! (canwrite < 0)
+
+Así que busco un caso en el que se violase tal condición, negándola:
+
+	! ( [] ! (canwrite < 0))
+
+	$ spin -a -f '! ( [] ! (canwrite < 0))' rw.pml
+	$ gcc -DSAFETY -o pan pan.c
+	$ ./pan
+
+	warning: never claim + accept labels requires -a flag to fully verify
+	warning: for p.o. reduction to be valid the never claim must be 
+	stutter-invariant
+	(never claims generated from LTL formulae are stutter-invariant)
+
+	(Spin Version 6.4.3 -- 16 December 2014)
+		+ Partial Order Reduction
+
+	Full statespace search for:
+		never claim         	+ (never_0)
+		assertion violations	+ (if within scope of claim)
+		cycle checks       	- (disabled by -DSAFETY)
+		invalid end states	- (disabled by never claim)
+
+	State-vector 84 byte, depth reached 6041, errors: 0
+	     5606 states, stored
+	    11220 states, matched
+	    16826 transitions (= stored+matched)
+		0 atomic steps
+	hash conflicts:      1334 (resolved)
+
+	Stats on memory usage (in Megabytes):
+	    0.599	equivalent memory usage for states (stored*(State-vector + 
+	      overhead))
+	    0.579	actual memory usage for states (compression: 96.65%)
+			state-vector as stored = 80 byte + 28 byte overhead
+	  128.000	memory used for hash table (-w24)
+	    0.534	memory used for DFS stack (-m10000)
+	  129.022	total actual memory usage
+
+
+	unreached in proctype W
+		rw.pml:19, state 12, "-end-"
+		(1 of 12 states)
+	unreached in proctype R
+		rw.pml:45, state 36, "-end-"
+		(1 of 36 states)
+	unreached in claim never_0
+		rw.pml.nvr:10, state 10, "-end-"
+		(1 of 10 states)
+
+	pan: elapsed time 0.08 seconds
+	pan: rate     70075 states/second
+
+No ha encontrado ningún caso en el que la condición de seguridad ha sido violada.
+
+Liveness
+--------
+
+Ahora probaré si es posible que se atasque. Que para cualquier proceso, siempre
+puede acceder a la sección crítica en algún momento futuro:
+
+	Siempre existe un punto futuro en el que el proceso se encuentra en la
+	sección crítica:
+
+	[]<>(W@cs)
+
+Y ahora trato de buscar un contraejemplo, es decir, que nunca pueda volver a la
+sección crítica, negándolo:
+
+	! ([]<>(W@cs))
+
+Encuentra un contraejemplo pero aún con la opción -i, tiene 4827 pasos. Reduzco
+NR = NW = 1. Ahora me muestra un ejemplo sencillo:
+
+	$ spin -t -p rw.pml
+
+	starting claim 2
+	spin: couldn't find claim 2 (ignored)
+	using statement merging
+	  2:	proc  1 (R:1) rw.pml:25 (state 1)	[((rmutex>0))]
+	  2:	proc  1 (R:1) rw.pml:25 (state 2)	[rmutex = (rmutex-1)]
+	  4:	proc  1 (R:1) rw.pml:26 (state 5)	[readers = (readers+1)]
+	  6:	proc  1 (R:1) rw.pml:28 (state 6)	[((readers==1))]
+	  8:	proc  1 (R:1) rw.pml:28 (state 7)	[((canwrite>0))]
+	  8:	proc  1 (R:1) rw.pml:28 (state 8)	[canwrite = (canwrite-1)]
+	 10:	proc  1 (R:1) rw.pml:31 (state 15)	[rmutex = (rmutex+1)]
+	  <<<<<START OF CYCLE>>>>>
+		      Reader 1 in critical
+	 12:	proc  1 (R:1) rw.pml:33 (state 17)	[printf('Reader %d in critical\\n',_pid)]
+	 14:	proc  1 (R:1) rw.pml:35 (state 18)	[((rmutex>0))]
+	 14:	proc  1 (R:1) rw.pml:35 (state 19)	[rmutex = (rmutex-1)]
+	 16:	proc  1 (R:1) rw.pml:36 (state 22)	[readers = (readers-1)]
+	 18:	proc  1 (R:1) rw.pml:38 (state 23)	[((readers==0))]
+	 20:	proc  1 (R:1) rw.pml:38 (state 24)	[canwrite = (canwrite+1)]
+	 22:	proc  1 (R:1) rw.pml:41 (state 30)	[rmutex = (rmutex+1)]
+		      Reader 1 out critical
+	 24:	proc  1 (R:1) rw.pml:42 (state 32)	[printf('Reader %d out critical\\n',_pid)]
+	 26:	proc  1 (R:1) rw.pml:25 (state 1)	[((rmutex>0))]
+	 26:	proc  1 (R:1) rw.pml:25 (state 2)	[rmutex = (rmutex-1)]
+	 28:	proc  1 (R:1) rw.pml:26 (state 5)	[readers = (readers+1)]
+	 30:	proc  1 (R:1) rw.pml:28 (state 6)	[((readers==1))]
+	 32:	proc  1 (R:1) rw.pml:28 (state 7)	[((canwrite>0))]
+	 32:	proc  1 (R:1) rw.pml:28 (state 8)	[canwrite = (canwrite-1)]
+	 34:	proc  1 (R:1) rw.pml:31 (state 15)	[rmutex = (rmutex+1)]
+	spin: trail ends after 34 steps
+	#processes: 2
+			canwrite = 0
+			rmutex = 1
+			readers = 1
+	 34:	proc  1 (R:1) rw.pml:33 (state 17)
+	 34:	proc  0 (W:1) rw.pml:13 (state 9)
+	2 processes created
+
+Parece que el escritor acapara el hilo de ejecución siempre. Voy a realizar una
+modificación en el código para que esto no suceda. Añado la variable comida,
+que impide que un lector pueda acceder a la sección crítica si no hay comida
+(tiene que entrar un escritor). Si no hay comida, el escritor la incrementa.
+
+	#define NR	1
+	#define NW	1
+
+	#define wait(s) { atomic { s > 0; s-- } }
+	#define signal(s) { s++ }
+
+	byte canwrite = 1;
+	byte rmutex = 1;
+	byte readers = 0;
+	int food = 0;
+
+	active [NW] proctype W()
+	{
+		do ::
+			food == 0;
+			wait(canwrite);
+	cs:		printf("Writer %d in critical\n", _pid);
+			food = food + NR;
+			signal(canwrite)
+			printf("Writer %d out critical\n", _pid);
+		od
+	}
+
+	active [NR] proctype R()
+	{
+		do ::
+			food > 0;
+			wait(rmutex);
+			readers++;
+			if
+			:: readers == 1 -> wait(canwrite);
+			:: else -> skip;
+			fi;
+			signal(rmutex);
+
+	cs:		printf("Reader %d in critical\n", _pid);
+			food = food - NR;
+
+			wait(rmutex);
+			readers--;
+			if
+			:: readers == 0 -> signal(canwrite);
+			:: else -> skip;
+			fi;
+			signal(rmutex)
+			printf("Reader %d out critical\n", _pid);
+
+		od
+	}
+
+Ahora vuelvo a comprobar si no se producen errores.
+
+	./pan -a -f -i
+	warning: -i or -I work for safety properties only
+	warning: for p.o. reduction to be valid the never claim must be stutter-invariant
+	(never claims generated from LTL formulae are stutter-invariant)
+
+	(Spin Version 6.4.3 -- 16 December 2014)
+		+ Partial Order Reduction
+
+	Full statespace search for:
+		never claim         	+ (never_0)
+		assertion violations	+ (if within scope of claim)
+		acceptance   cycles 	+ (fairness enabled)
+		invalid end states	- (disabled by never claim)
+
+	State-vector 36 byte, depth reached 59, errors: 0
+	       85 states, stored (172 visited)
+	      135 states, matched
+	      307 transitions (= visited+matched)
+		0 atomic steps
+	hash conflicts:         0 (resolved)
+
+	Stats on memory usage (in Megabytes):
+	    0.005	equivalent memory usage for states (stored*(State-vector + overhead))
+	    0.285	actual memory usage for states
+	  128.000	memory used for hash table (-w24)
+	    0.534	memory used for DFS stack (-m10000)
+	  128.730	total actual memory usage
+
+
+	unreached in proctype W
+		rw.pml:22, state 14, "-end-"
+		(1 of 14 states)
+	unreached in proctype R
+		rw.pml:49, state 38, "-end-"
+		(1 of 38 states)
+	unreached in claim never_0
+		rw.pml.nvr:12, state 13, "-end-"
+		(1 of 13 states)
+
+	pan: elapsed time 0 seconds
