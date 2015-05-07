@@ -2,23 +2,28 @@ byte wantP = 0, wantQ = 0;
 byte critical = 0;
 
 active proctype P() {
-	atomic {
-		!wantQ;
-		wantP = true;
-	}
-	critical++;
-cs:	printf("Critical section P");
-	critical--;
+	do
+	::
+		atomic {
+			!wantQ;
+			wantP = true;
+		}
+		critical++;
+cs:		printf("Critical section P");
+		critical--;
+	od;
 }
 
 
 active proctype Q() {
-	atomic {
-		!wantP;
-		wantQ = true;
-	}
-	critical++;
-	false;
-cs:	printf("Critical section Q");
-	critical--;
+	do
+	::
+		atomic {
+			!wantP;
+			wantQ = true;
+		}
+		critical++;
+cs:		printf("Critical section Q");
+		critical--;
+	od;
 }

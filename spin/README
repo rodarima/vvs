@@ -3,7 +3,7 @@
 Para la resolución de la práctica voy a realizar un documento en el que iré 
 comentando los pasos que voy realizando.
 
-Comienzo con la primera sección, con el siguiente código:
+Comienzo con la primera solución, con el siguiente código:
 
 	#define NR	10
 	#define NW	10
@@ -380,3 +380,218 @@ Ahora vuelvo a comprobar si no se producen errores.
 		(1 of 13 states)
 
 	pan: elapsed time 0 seconds
+
+
+Segunda solución, prioridad para los escritores.
+------------------------------------------------
+
+
+	#define NR	2
+	#define NW	2
+
+	#define wait(s) { atomic { s > 0; s-- } }
+	#define signal(s) { s++ }
+
+	byte canread = 1;
+	byte canwrite = 1;
+	byte wmutex = 1;
+	byte writers = 0;
+	//int food = 0;
+
+	active [NW] proctype W()
+	{
+		do ::
+	//		food == 0;
+			wait(wmutex);
+			writers++;
+			if
+			:: writers == 1 -> wait(canread);
+			:: else -> skip;
+			fi;
+			signal(wmutex);
+
+			wait(canwrite);
+	cs:		printf("Writer %d in critical\n", _pid);
+	//		food = food + NR;
+			signal(canwrite);
+
+			wait(wmutex);
+			writers--;
+			if
+			:: writers == 0 -> signal(canread);
+			:: else -> skip;
+			fi;
+			signal(wmutex);
+			printf("Writer %d out critical\n", _pid);
+		od
+	}
+
+	active [NR] proctype R()
+	{
+		do ::
+	//		food > 0;
+			wait(canread);
+			wait(rmutex);
+			readers++;
+			if
+			:: readers == 1 -> wait(canwrite);
+			:: else -> skip;
+			fi;
+			signal(rmutex);
+			signal(canread);
+
+	cs:		printf("Reader %d in critical\n", _pid);
+	//		food = food - NR;
+
+			wait(rmutex);
+			readers--;
+			if
+			:: readers == 0 -> signal(canwrite);
+			:: else -> skip;
+			fi;
+			signal(rmutex);
+			printf("Reader %d out critical\n", _pid);
+
+		od
+	}
+
+Prueba de deadlock.
+
+	$ spin -a wr.pml
+	$ gcc -o pan pan.c
+	$ ./pan
+	hint: this search is more efficient if pan.c is compiled -DSAFETY
+
+	(Spin Version 6.4.3 -- 16 December 2014)
+		+ Partial Order Reduction
+
+	Full statespace search for:
+		never claim         	- (none specified)
+		assertion violations	+
+		acceptance   cycles 	- (not selected)
+		invalid end states	+
+
+	State-vector 44 byte, depth reached 1005, errors: 0
+	     2112 states, stored
+	     3189 states, matched
+	     5301 transitions (= stored+matched)
+		0 atomic steps
+	hash conflicts:        24 (resolved)
+
+	Stats on memory usage (in Megabytes):
+	    0.145	equivalent memory usage for states (stored*(State-vector +
+	overhead))
+	    0.282	actual memory usage for states
+	  128.000	memory used for hash table (-w24)
+	    0.534	memory used for DFS stack (-m10000)
+	  128.730	total actual memory usage
+
+
+	unreached in proctype W
+		wr.pml:39, state 42, "-end-"
+		(1 of 42 states)
+	unreached in proctype R
+		wr.pml:67, state 42, "-end-"
+		(1 of 42 states)
+
+	pan: elapsed time 0.01 seconds
+
+No se producen bloqueos.
+
+Pruebas de "safety".
+
+Para los escritores:
+
+	$ spin -a -f '! ( [] ! (canwrite < 0))' wr.pml
+	$ gcc -DSAFETY -o pan pan.c
+	$ ./pan
+	warning: never claim + accept labels requires -a flag to fully verify
+	warning: for p.o. reduction to be valid the never claim must be
+	stutter-invariant
+	(never claims generated from LTL formulae are stutter-invariant)
+
+	(Spin Version 6.4.3 -- 16 December 2014)
+		+ Partial Order Reduction
+
+	Full statespace search for:
+		never claim         	+ (never_0)
+		assertion violations	+ (if within scope of claim)
+		cycle checks       	- (disabled by -DSAFETY)
+		invalid end states	- (disabled by never claim)
+
+	State-vector 52 byte, depth reached 2011, errors: 0
+	     2112 states, stored
+	     3189 states, matched
+	     5301 transitions (= stored+matched)
+		0 atomic steps
+	hash conflicts:        59 (resolved)
+
+	Stats on memory usage (in Megabytes):
+	    0.161	equivalent memory usage for states (stored*(State-vector +
+	overhead))
+	    0.281	actual memory usage for states
+	  128.000	memory used for hash table (-w24)
+	    0.534	memory used for DFS stack (-m10000)
+	  128.730	total actual memory usage
+
+
+	unreached in proctype W
+		wr.pml:39, state 42, "-end-"
+		(1 of 42 states)
+	unreached in proctype R
+		wr.pml:67, state 42, "-end-"
+		(1 of 42 states)
+	unreached in claim never_0
+		wr.pml.nvr:10, state 10, "-end-"
+		(1 of 10 states)
+
+	pan: elapsed time 0.01 seconds
+
+Para los lectores:
+
+	$ spin -a -f '! ( [] ! (canread < 0))' wr.pml
+	$ gcc -DSAFETY -o pan pan.c
+	$ ./pan
+	warning: never claim + accept labels requires -a flag to fully verify
+	warning: for p.o. reduction to be valid the never claim must be
+	stutter-invariant
+	(never claims generated from LTL formulae are stutter-invariant)
+
+	(Spin Version 6.4.3 -- 16 December 2014)
+		+ Partial Order Reduction
+
+	Full statespace search for:
+		never claim         	+ (never_0)
+		assertion violations	+ (if within scope of claim)
+		cycle checks       	- (disabled by -DSAFETY)
+		invalid end states	- (disabled by never claim)
+
+	State-vector 52 byte, depth reached 2011, errors: 0
+	     2112 states, stored
+	     3189 states, matched
+	     5301 transitions (= stored+matched)
+		0 atomic steps
+	hash conflicts:        59 (resolved)
+
+	Stats on memory usage (in Megabytes):
+	    0.161	equivalent memory usage for states (stored*(State-vector +
+	overhead))
+	    0.281	actual memory usage for states
+	  128.000	memory used for hash table (-w24)
+	    0.534	memory used for DFS stack (-m10000)
+	  128.730	total actual memory usage
+
+
+	unreached in proctype W
+		wr.pml:39, state 42, "-end-"
+		(1 of 42 states)
+	unreached in proctype R
+		wr.pml:67, state 42, "-end-"
+		(1 of 42 states)
+	unreached in claim never_0
+		wr.pml.nvr:10, state 10, "-end-"
+		(1 of 10 states)
+
+	pan: elapsed time 0.01 seconds
+
+No se producen bloqueos.
