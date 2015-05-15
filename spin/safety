@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# Para asegurar el correcto funcionamiento, han de cumplirse los siguientes
+# casos:
+# 	o Nunca dos escritores pueden encontrarse en la sección crítica
+# 	o Nunca un escritor y un lector pueden estar en la sección crítica
+# 	o Dos lectores deben poder acceder a la sección crítica a la vez
+# 
+# Que se convierten en las siguientes condiciones de 'safety':
+# 
+# 	[]!(W[0]@cs && W[1]@cs)
+# 	[]!(W@cs && R@cs)
+# 	[]<>(R[2]@cs && R[3]@cs)
+# 
+# Para comprobar que se cumplen, busco un contraejemplo; un caso en el que alguna 
+# condición NO se cumpla:
+# 
+# 	![]!(W[0]@cs && W[1]@cs)
+# 	![]!(W@cs && R@cs)
+# 	![]<>(R[2]@cs && R[3]@cs)
+
+echo '![]!(W[0]@cs && W[1]@cs)'
+./ltl '![]!(W[0]@cs && W[1]@cs)' "$1"
+
+echo '![]!(W@cs && R@cs)'
+./ltl '![]!(W@cs && R@cs)' "$1"
+
+echo '![]<>(R[2]@cs && R[3]@cs)'
+./ltl '![]<>(R[2]@cs && R[3]@cs)' "$1"

@@ -1,0 +1,8 @@
+#!/bin/bash
+
+echo "# DEADLOCK"
+./deadlock "$1"
+echo "# SAFETY"
+./safety "$1"
+echo "# LIVENESS"
+./liveness "$1"

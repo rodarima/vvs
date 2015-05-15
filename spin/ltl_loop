@@ -1,0 +1,18 @@
+#!/bin/bash
+
+LTL="$1"
+FILE="$2"
+
+./spin -a -f "$LTL" "$FILE"
+gcc -o pan pan.c
+ERR=$(./pan -a -f | grep errors)
+echo "$ERR"
+ERRN=$(echo "$ERR" | awk '{print $NF}')
+
+if [ "$ERRN" == "0" ]; then
+	echo OK
+else
+	FILE_LOG="${FILE}.$(date +%N)"
+	echo "Error log: $FILE_LOG"
+	./spin -t -p "$FILE" > "$FILE_LOG"
+fi

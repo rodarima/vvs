@@ -1,5 +1,5 @@
-#define NR	1
-#define NW	1
+#define NW	2
+#define NR	2
 
 #define wait(s) { atomic { s > 0; s-- } }
 #define signal(s) { s++ }
@@ -9,14 +9,19 @@ byte rmutex = 1;
 byte readers = 0;
 int food = 0;
 
+int wpid = 0;
+int rpid = NW;
+
 active [NW] proctype W()
 {
 	do ::
+		wpid == _pid;
 		food == 0;
 		wait(canwrite);
 cs:		printf("Writer %d in critical\n", _pid);
 		food = food + NR;
-		signal(canwrite)
+		wpid = (wpid + 1) % NW;
+		signal(canwrite);
 		printf("Writer %d out critical\n", _pid);
 	od
 }
@@ -24,6 +29,7 @@ cs:		printf("Writer %d in critical\n", _pid);
 active [NR] proctype R()
 {
 	do ::
+		rpid == _pid;
 		food > 0;
 		wait(rmutex);
 		readers++;
@@ -34,7 +40,9 @@ active [NR] proctype R()
 		signal(rmutex);
 
 cs:		printf("Reader %d in critical\n", _pid);
+
 		food = food - NR;
+		rpid = NW + (rpid + 1) % NR;
 
 		wait(rmutex);
 		readers--;
@@ -42,7 +50,7 @@ cs:		printf("Reader %d in critical\n", _pid);
 		:: readers == 0 -> signal(canwrite);
 		:: else -> skip;
 		fi;
-		signal(rmutex)
+		signal(rmutex);
 		printf("Reader %d out critical\n", _pid);
 
 	od

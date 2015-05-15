@@ -1,0 +1,77 @@
+starting claim 2
+spin: couldn't find claim 2 (ignored)
+using statement merging
+  2:	proc  3 (R) rw.pml:24 (state 1)	[((rmutex>0))]
+  2:	proc  3 (R) rw.pml:24 (state 2)	[rmutex = (rmutex-1)]
+  4:	proc  3 (R) rw.pml:25 (state 5)	[readers = (readers+1)]
+  6:	proc  3 (R) rw.pml:27 (state 6)	[((readers==1))]
+  8:	proc  3 (R) rw.pml:27 (state 7)	[((canwrite>0))]
+  8:	proc  3 (R) rw.pml:27 (state 8)	[canwrite = (canwrite-1)]
+ 10:	proc  3 (R) rw.pml:30 (state 15)	[rmutex = (rmutex+1)]
+                      Reader 3 in critical
+ 12:	proc  3 (R) rw.pml:32 (state 17)	[printf('Reader %d in critical\\n',_pid)]
+ 14:	proc  3 (R) rw.pml:34 (state 18)	[((rmutex>0))]
+ 14:	proc  3 (R) rw.pml:34 (state 19)	[rmutex = (rmutex-1)]
+ 16:	proc  3 (R) rw.pml:35 (state 22)	[readers = (readers-1)]
+ 18:	proc  3 (R) rw.pml:37 (state 23)	[((readers==0))]
+ 20:	proc  3 (R) rw.pml:37 (state 24)	[canwrite = (canwrite+1)]
+ 22:	proc  3 (R) rw.pml:40 (state 30)	[rmutex = (rmutex+1)]
+                      Reader 3 out critical
+ 24:	proc  3 (R) rw.pml:41 (state 32)	[printf('Reader %d out critical\\n',_pid)]
+ 26:	proc  2 (R) rw.pml:24 (state 1)	[((rmutex>0))]
+ 26:	proc  2 (R) rw.pml:24 (state 2)	[rmutex = (rmutex-1)]
+ 28:	proc  2 (R) rw.pml:25 (state 5)	[readers = (readers+1)]
+ 30:	proc  2 (R) rw.pml:27 (state 6)	[((readers==1))]
+ 32:	proc  1 (W) rw.pml:14 (state 1)	[((canwrite>0))]
+ 32:	proc  1 (W) rw.pml:14 (state 2)	[canwrite = (canwrite-1)]
+              Writer 1 in critical
+ 34:	proc  1 (W) rw.pml:15 (state 5)	[printf('Writer %d in critical\\n',_pid)]
+ 36:	proc  1 (W) rw.pml:16 (state 6)	[canwrite = (canwrite+1)]
+              Writer 1 out critical
+ 38:	proc  1 (W) rw.pml:17 (state 8)	[printf('Writer %d out critical\\n',_pid)]
+ 40:	proc  0 (W) rw.pml:14 (state 1)	[((canwrite>0))]
+ 40:	proc  0 (W) rw.pml:14 (state 2)	[canwrite = (canwrite-1)]
+          Writer 0 in critical
+ 42:	proc  0 (W) rw.pml:15 (state 5)	[printf('Writer %d in critical\\n',_pid)]
+ 44:	proc  0 (W) rw.pml:16 (state 6)	[canwrite = (canwrite+1)]
+          Writer 0 out critical
+ 46:	proc  0 (W) rw.pml:17 (state 8)	[printf('Writer %d out critical\\n',_pid)]
+ 48:	proc  1 (W) rw.pml:14 (state 1)	[((canwrite>0))]
+ 48:	proc  1 (W) rw.pml:14 (state 2)	[canwrite = (canwrite-1)]
+              Writer 1 in critical
+ 50:	proc  1 (W) rw.pml:15 (state 5)	[printf('Writer %d in critical\\n',_pid)]
+ 52:	proc  1 (W) rw.pml:16 (state 6)	[canwrite = (canwrite+1)]
+ 54:	proc  0 (W) rw.pml:14 (state 1)	[((canwrite>0))]
+ 54:	proc  0 (W) rw.pml:14 (state 2)	[canwrite = (canwrite-1)]
+  <<<<<START OF CYCLE>>>>>
+              Writer 1 out critical
+ 56:	proc  1 (W) rw.pml:17 (state 8)	[printf('Writer %d out critical\\n',_pid)]
+          Writer 0 in critical
+ 58:	proc  0 (W) rw.pml:15 (state 5)	[printf('Writer %d in critical\\n',_pid)]
+ 60:	proc  0 (W) rw.pml:16 (state 6)	[canwrite = (canwrite+1)]
+          Writer 0 out critical
+ 62:	proc  0 (W) rw.pml:17 (state 8)	[printf('Writer %d out critical\\n',_pid)]
+ 64:	proc  1 (W) rw.pml:14 (state 1)	[((canwrite>0))]
+ 64:	proc  1 (W) rw.pml:14 (state 2)	[canwrite = (canwrite-1)]
+              Writer 1 in critical
+ 66:	proc  1 (W) rw.pml:15 (state 5)	[printf('Writer %d in critical\\n',_pid)]
+ 68:	proc  1 (W) rw.pml:16 (state 6)	[canwrite = (canwrite+1)]
+              Writer 1 out critical
+ 70:	proc  1 (W) rw.pml:17 (state 8)	[printf('Writer %d out critical\\n',_pid)]
+ 72:	proc  1 (W) rw.pml:14 (state 1)	[((canwrite>0))]
+ 72:	proc  1 (W) rw.pml:14 (state 2)	[canwrite = (canwrite-1)]
+              Writer 1 in critical
+ 74:	proc  1 (W) rw.pml:15 (state 5)	[printf('Writer %d in critical\\n',_pid)]
+ 76:	proc  1 (W) rw.pml:16 (state 6)	[canwrite = (canwrite+1)]
+ 78:	proc  0 (W) rw.pml:14 (state 1)	[((canwrite>0))]
+ 78:	proc  0 (W) rw.pml:14 (state 2)	[canwrite = (canwrite-1)]
+spin: trail ends after 78 steps
+#processes: 4
+		canwrite = 0
+		rmutex = 0
+		readers = 1
+ 78:	proc  3 (R) rw.pml:23 (state 33)
+ 78:	proc  2 (R) rw.pml:27 (state 10)
+ 78:	proc  1 (W) rw.pml:17 (state 8)
+ 78:	proc  0 (W) rw.pml:15 (state 5)
+4 processes created

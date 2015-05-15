@@ -10,7 +10,6 @@ byte wmutex = 1;
 byte writers = 0;
 byte rmutex = 1;
 byte readers = 0;
-//int food = 0;
 
 active [NW] proctype W()
 {

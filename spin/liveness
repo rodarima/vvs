@@ -1,0 +1,31 @@
+#!/bin/bash
+
+
+# Las pruebas de viveza (liveness) permiten asegurar que cualquier proceso tendrá 
+# siempre la oportunidad de llegar a la sección crítica. Para comprobar que esto 
+# siempre sucede, la siguientes pruebas lo garantizan:
+# 
+# 	o En algún momento un lector puede encontrarse en la sección crítica
+# 	o En algún momento un escritor puede encontrarse en la sección crítica
+# 
+# Que pueden transformarse en las siguientes proposiciones:
+# 
+# 	<>(R@cs)
+# 	<>(W@cs)
+# 
+# Además, estas propiedades deben cumplirse siempre, por lo que:
+# 
+# 	[]<>(R@cs)
+# 	[]<>(W@cs)
+# 
+# Y para encontrar un contraejemplo:
+# 
+# 	![]<>(R@cs)
+# 	![]<>(W@cs)
+
+
+echo '![]<>(R@cs)'
+./ltl_loop '![]<>(R@cs)' "$1"
+
+echo '![]<>(W@cs)'
+./ltl_loop '![]<>(W@cs)' "$1"

@@ -1,287 +1,164 @@
 2015A25
 
-Para la resolución de la práctica voy a realizar un documento en el que iré 
-comentando los pasos que voy realizando.
+1. Prioridad para los lectores
+==============================
 
-Comienzo con la primera solución, con el siguiente código:
+1.1 Deadlock
+============
 
-	#define NR	10
-	#define NW	10
+Para comprobar que no hay bloqueos, se usa un script "deadlock" que comprueba 
+las condiciones con spin y filtra la salida:
 
-	#define wait(s) { atomic { s > 0; s-- } }
-	#define signal(s) { s++ }
-
-	byte canwrite = 1;
-	byte rmutex = 1;
-	byte readers = 0;
-
-	active [NW] proctype W()
-	{
-		do ::
-			wait(canwrite);
-	cs:		printf("Writer %d in critical\n", _pid);
-			signal(canwrite)
-			printf("Writer %d out critical\n", _pid);
-		od
-	}
-
-	active [NR] proctype R()
-	{
-		do ::
-
-			wait(rmutex);
-			readers++;
-			if
-			:: readers == 1 -> wait(canwrite);
-			:: else -> skip;
-			fi;
-			signal(rmutex);
-
-	cs:		printf("Reader %d in critical\n", _pid);
-
-			wait(rmutex);
-			readers--;
-			if
-			:: readers == 0 -> signal(canwrite);
-			:: else -> skip;
-			fi;
-			signal(rmutex)
-			printf("Reader %d out critical\n", _pid);
-
-		od
-	}
-
-Son dos procesos que tienen un bucle infinito, siguiendo el esquema propuesto.  
-
-
-Deadlock
---------
-
-Primero comprobaré que nunca se producen bloqueos (deadlocks).
-
-	$ spin -a rw.pml
-
+	$ ./deadlock rw.pml
 	hint: this search is more efficient if pan.c is compiled -DSAFETY
-	error: max search depth too small
-
-	(Spin Version 6.4.3 -- 16 December 2014)
-		+ Partial Order Reduction
-
-	Full statespace search for:
-		never claim         	- (none specified)
-		assertion violations	+
-		acceptance   cycles 	- (not selected)
-		invalid end states	+
-
-	State-vector 172 byte, depth reached 9999, errors: 0
-	   113965 states, stored
-	   196640 states, matched
-	   310605 transitions (= stored+matched)
-		0 atomic steps
-	hash conflicts:    112534 (resolved)
-
-	Stats on memory usage (in Megabytes):
-	   21.737	equivalent memory usage for states (stored*(State-vector +
-	overhead))
-	    8.101	actual memory usage for states (compression: 37.27%)
-			state-vector as stored = 47 byte + 28 byte overhead
-	  128.000	memory used for hash table (-w24)
-	    0.534	memory used for DFS stack (-m10000)
-	  136.542	total actual memory usage
-
-
-	unreached in proctype W
-		rw.pml:19, state 12, "-end-"
-		(1 of 12 states)
-	unreached in proctype R
-		rw.pml:45, state 36, "-end-"
-		(1 of 36 states)
-
-	pan: elapsed time 2.05 seconds
-	pan: rate 55592.683 states/second
-
-Informa de que la profundidad de búsqueda es muy pequeña (9999). Aumentando x10, 
-tampoco es suficiente. Veamos con x100, acapara toda la RAM y no termina:
-
-	Depth=  885860 States=    1e+06 Transitions= 3.48e+06 Memory=   
-	250.254 t=     19.9 R=   5e+04
-	error: max search depth too small
-
-Probar a reducir NR y NW a 2:
-
-	hint: this search is more efficient if pan.c is compiled -DSAFETY
-
-	(Spin Version 6.4.3 -- 16 December 2014)
-		+ Partial Order Reduction
-
-	Full statespace search for:
-		never claim         	- (none specified)
-		assertion violations	+
-		acceptance   cycles 	- (not selected)
-		invalid end states	+
-
 	State-vector 44 byte, depth reached 177, errors: 0
-	      271 states, stored
-	      411 states, matched
-	      682 transitions (= stored+matched)
-		0 atomic steps
-	hash conflicts:         0 (resolved)
 
-	Stats on memory usage (in Megabytes):
-	    0.019	equivalent memory usage for states (stored*(State-vector + 
-	      overhead))
-	    0.287	actual memory usage for states
-	  128.000	memory used for hash table (-w24)
-	    0.534	memory used for DFS stack (-m10000)
-	  128.730	total actual memory usage
+No se producen errores de 'deadlock'.
 
+1.2 Safety
+==========
 
-	unreached in proctype W
-		rw.pml:19, state 12, "-end-"
-		(1 of 12 states)
-	unreached in proctype R
-		rw.pml:45, state 36, "-end-"
-		(1 of 36 states)
+Para asegurar el correcto funcionamiento, han de cumplirse los siguientes casos:
 
-	pan: elapsed time 0 seconds
+	o Nunca dos escritores pueden encontrarse en la sección crítica
+	o Nunca un escritor y un lector pueden estar en la sección crítica
+	o Dos lectores deben poder acceder a la sección crítica a la vez
 
-Ahora ha concluído satisfactoriamente. No se han producido errores. Comprobación 
-para NR = NW = 4:
+Que se convierten en las siguientes condiciones de 'safety':
 
-	State-vector 76 byte, depth reached 3020, errors: 0
+	[]!(W[0]@cs && W[1]@cs)
+	[]!(W@cs && R@cs)
+	[]<>(R[2]@cs && R[3]@cs)
 
-No se producen errores, así que se asume que con un número superior de 
-escritores o lectores no se producirán errores.
+Para comprobar que se cumplen, busco un contraejemplo; un caso en el que alguna 
+condición NO se cumpla:
 
+	![]!(W[0]@cs && W[1]@cs)
+	![]!(W@cs && R@cs)
+	![]<>(R[2]@cs && R[3]@cs)
 
-Safety
-------
+Resultados:
+	
+	$ ./safety rw.pml
+	![]!(W[0]@cs && W[1]@cs)
+	State-vector 52 byte, depth reached 355, errors: 0
+	
+	![]!(W@cs && R@cs)
+	State-vector 52 byte, depth reached 355, errors: 0
+	
+	![]<>(R[2]@cs && R[3]@cs)
+	State-vector 52 byte, depth reached 363, errors: 0
 
-Para asegurar la exclusión mútua, es necesario que se cumplan una serie de 
-restricciones:
+Dado que no hay errores, no se han encontrado contraejemplos, por lo tanto se 
+cumplen todas las condiciones de seguridad.
 
-	Dos procesos escritores (W) nunca pueden encontrarse en la sección
-	crítica a la vez
+1.3 Liveness
+============
 
-Para ello, emplearé la variable contador canwrite, que se decrementa cuando un 
-proceso escritor accede a la sección crítica, y se incrementa al terminar. Si se 
-ha decrementado dos veces, es que hay dos procesos en la sección crítica:
+Las pruebas de viveza (liveness) permiten asegurar que cualquier proceso tendrá 
+siempre la oportunidad de llegar a la sección crítica. Para comprobar que esto 
+siempre sucede, la siguientes pruebas lo garantizan:
 
-	Nunca debe ocurrir que canwrite < 0
+	o En algún momento un lector puede encontrarse en la sección crítica
+	o En algún momento un escritor puede encontrarse en la sección crítica
 
-	[] ! (canwrite < 0)
+Que pueden transformarse en las siguientes proposiciones:
 
-Así que busco un caso en el que se violase tal condición, negándola:
+	<>(R@cs)
+	<>(W@cs)
 
-	! ( [] ! (canwrite < 0))
+Además, estas propiedades deben cumplirse siempre, por lo que:
 
-	$ spin -a -f '! ( [] ! (canwrite < 0))' rw.pml
-	$ gcc -DSAFETY -o pan pan.c
-	$ ./pan
-
-	warning: never claim + accept labels requires -a flag to fully verify
-	warning: for p.o. reduction to be valid the never claim must be 
-	stutter-invariant
-	(never claims generated from LTL formulae are stutter-invariant)
-
-	(Spin Version 6.4.3 -- 16 December 2014)
-		+ Partial Order Reduction
-
-	Full statespace search for:
-		never claim         	+ (never_0)
-		assertion violations	+ (if within scope of claim)
-		cycle checks       	- (disabled by -DSAFETY)
-		invalid end states	- (disabled by never claim)
-
-	State-vector 84 byte, depth reached 6041, errors: 0
-	     5606 states, stored
-	    11220 states, matched
-	    16826 transitions (= stored+matched)
-		0 atomic steps
-	hash conflicts:      1334 (resolved)
-
-	Stats on memory usage (in Megabytes):
-	    0.599	equivalent memory usage for states (stored*(State-vector + 
-	      overhead))
-	    0.579	actual memory usage for states (compression: 96.65%)
-			state-vector as stored = 80 byte + 28 byte overhead
-	  128.000	memory used for hash table (-w24)
-	    0.534	memory used for DFS stack (-m10000)
-	  129.022	total actual memory usage
-
-
-	unreached in proctype W
-		rw.pml:19, state 12, "-end-"
-		(1 of 12 states)
-	unreached in proctype R
-		rw.pml:45, state 36, "-end-"
-		(1 of 36 states)
-	unreached in claim never_0
-		rw.pml.nvr:10, state 10, "-end-"
-		(1 of 10 states)
-
-	pan: elapsed time 0.08 seconds
-	pan: rate     70075 states/second
-
-No ha encontrado ningún caso en el que la condición de seguridad ha sido violada.
-
-Liveness
---------
-
-Ahora probaré si es posible que se atasque. Que para cualquier proceso, siempre
-puede acceder a la sección crítica en algún momento futuro:
-
-	Siempre existe un punto futuro en el que el proceso se encuentra en la
-	sección crítica:
-
+	[]<>(R@cs)
 	[]<>(W@cs)
 
-Y ahora trato de buscar un contraejemplo, es decir, que nunca pueda volver a la
-sección crítica, negándolo:
+Y para encontrar un contraejemplo:
 
-	! ([]<>(W@cs))
+	![]<>(R@cs)
+	![]<>(W@cs)
 
-Encuentra un contraejemplo pero aún con la opción -i, tiene 4827 pasos. Reduzco
-NR = NW = 1. Ahora me muestra un ejemplo sencillo:
+El resultado es el siguiente:
 
-	$ spin -t -p rw.pml
+	$ ./liveness rw.pml
 
-	starting claim 2
-	spin: couldn't find claim 2 (ignored)
-	using statement merging
-	  2:	proc  1 (R:1) rw.pml:25 (state 1)	[((rmutex>0))]
-	  2:	proc  1 (R:1) rw.pml:25 (state 2)	[rmutex = (rmutex-1)]
-	  4:	proc  1 (R:1) rw.pml:26 (state 5)	[readers = (readers+1)]
-	  6:	proc  1 (R:1) rw.pml:28 (state 6)	[((readers==1))]
-	  8:	proc  1 (R:1) rw.pml:28 (state 7)	[((canwrite>0))]
-	  8:	proc  1 (R:1) rw.pml:28 (state 8)	[canwrite = (canwrite-1)]
-	 10:	proc  1 (R:1) rw.pml:31 (state 15)	[rmutex = (rmutex+1)]
+	![]<>(R@cs)
+	State-vector 52 byte, depth reached 79, errors: 1
+	Error log: rw.pml.377592207
+	
+	![]<>(W@cs)
+	State-vector 52 byte, depth reached 427, errors: 1
+	Error log: rw.pml.959203654
+
+Ambas pruebas han fallado. En el resultado se muestra con detalle que problema 
+ha provocado el error.
+
+En el primer caso, rw.pml.377592207 muestra:
+
+	 24:	proc  3 (R) rw.pml:41 (state 32) 
+	...
+	 30:	proc  2 (R) rw.pml:27 (state 6)
+	...
+	 50:	proc  1 (W) rw.pml:15 (state 5)
+	...
+	 52:	proc  1 (W) rw.pml:16 (state 6)
+	 54:	proc  0 (W) rw.pml:14 (state 1)
+	...
+	 54:	proc  0 (W) rw.pml:14 (state 2)
+
 	  <<<<<START OF CYCLE>>>>>
-		      Reader 1 in critical
-	 12:	proc  1 (R:1) rw.pml:33 (state 17)	[printf('Reader %d in critical\\n',_pid)]
-	 14:	proc  1 (R:1) rw.pml:35 (state 18)	[((rmutex>0))]
-	 14:	proc  1 (R:1) rw.pml:35 (state 19)	[rmutex = (rmutex-1)]
-	 16:	proc  1 (R:1) rw.pml:36 (state 22)	[readers = (readers-1)]
-	 18:	proc  1 (R:1) rw.pml:38 (state 23)	[((readers==0))]
-	 20:	proc  1 (R:1) rw.pml:38 (state 24)	[canwrite = (canwrite+1)]
-	 22:	proc  1 (R:1) rw.pml:41 (state 30)	[rmutex = (rmutex+1)]
-		      Reader 1 out critical
-	 24:	proc  1 (R:1) rw.pml:42 (state 32)	[printf('Reader %d out critical\\n',_pid)]
-	 26:	proc  1 (R:1) rw.pml:25 (state 1)	[((rmutex>0))]
-	 26:	proc  1 (R:1) rw.pml:25 (state 2)	[rmutex = (rmutex-1)]
-	 28:	proc  1 (R:1) rw.pml:26 (state 5)	[readers = (readers+1)]
-	 30:	proc  1 (R:1) rw.pml:28 (state 6)	[((readers==1))]
-	 32:	proc  1 (R:1) rw.pml:28 (state 7)	[((canwrite>0))]
-	 32:	proc  1 (R:1) rw.pml:28 (state 8)	[canwrite = (canwrite-1)]
-	 34:	proc  1 (R:1) rw.pml:31 (state 15)	[rmutex = (rmutex+1)]
-	spin: trail ends after 34 steps
-	#processes: 2
+
+		      Writer 1 out critical
+	 56:	proc  1 (W) rw.pml:17 (state 8)
+		  Writer 0 in critical
+	 58:	proc  0 (W) rw.pml:15 (state 5)
+	 60:	proc  0 (W) rw.pml:16 (state 6)
+		  Writer 0 out critical
+	 62:	proc  0 (W) rw.pml:17 (state 8)
+	 64:	proc  1 (W) rw.pml:14 (state 1)
+	 64:	proc  1 (W) rw.pml:14 (state 2)
+		      Writer 1 in critical
+	 66:	proc  1 (W) rw.pml:15 (state 5)
+	 68:	proc  1 (W) rw.pml:16 (state 6)
+		      Writer 1 out critical
+	 70:	proc  1 (W) rw.pml:17 (state 8)
+	 72:	proc  1 (W) rw.pml:14 (state 1)
+	 72:	proc  1 (W) rw.pml:14 (state 2)
+		      Writer 1 in critical
+	 74:	proc  1 (W) rw.pml:15 (state 5)
+	 76:	proc  1 (W) rw.pml:16 (state 6)
+	 78:	proc  0 (W) rw.pml:14 (state 1)
+	 78:	proc  0 (W) rw.pml:14 (state 2)
+	spin: trail ends after 78 steps
+	#processes: 4
 			canwrite = 0
-			rmutex = 1
+			rmutex = 0
 			readers = 1
-	 34:	proc  1 (R:1) rw.pml:33 (state 17)
-	 34:	proc  0 (W:1) rw.pml:13 (state 9)
-	2 processes created
+	 78:	proc  3 (R) rw.pml:23 (state 33)
+	 78:	proc  2 (R) rw.pml:27 (state 10)
+	 78:	proc  1 (W) rw.pml:17 (state 8)
+	 78:	proc  0 (W) rw.pml:15 (state 5)
+	4 processes created
+
+Se observa que existe un ciclo, en el que los escritores siempre acaparan el 
+hilo de ejecución, impidiendo que ningún lector pueda entrar.
+
+En el segundo caso, los lectores son los que no permiten acceder a los 
+escritores. Como se observa en rw.pml.959203654 existe un bucle, en el que un 
+escritor sí consigue entrar:
+
+...
+222:    proc  3 (R) rw.pml:25 (state 5) [readers = (readers+1)]
+224:    proc  3 (R) rw.pml:27 (state 6) [((readers==1))]
+	      Writer 1 in critical
+226:    proc  1 (W) rw.pml:15 (state 5) [printf('Writer %d in 
+	critical\\n',_pid)]
+228:    proc  1 (W) rw.pml:16 (state 6) [canwrite = (canwrite+1)]
+230:    proc  3 (R) rw.pml:27 (state 7) [((canwrite>0))]
+...
+
+Pero el otro escritor nunca lo consigue.
+
+
 
 Parece que el escritor acapara el hilo de ejecución siempre. Voy a realizar una
 modificación en el código para que esto no suceda. Añado la variable comida,
@@ -382,216 +259,225 @@ Ahora vuelvo a comprobar si no se producen errores.
 	pan: elapsed time 0 seconds
 
 
-Segunda solución, prioridad para los escritores.
-------------------------------------------------
+2. Prioridad para los escritores
+================================
 
+2.1 Deadlock
+============
 
-	#define NR	2
-	#define NW	2
+Con el script "deadlock" se comprueba que no existen bloqueos:
 
-	#define wait(s) { atomic { s > 0; s-- } }
-	#define signal(s) { s++ }
-
-	byte canread = 1;
-	byte canwrite = 1;
-	byte wmutex = 1;
-	byte writers = 0;
-	//int food = 0;
-
-	active [NW] proctype W()
-	{
-		do ::
-	//		food == 0;
-			wait(wmutex);
-			writers++;
-			if
-			:: writers == 1 -> wait(canread);
-			:: else -> skip;
-			fi;
-			signal(wmutex);
-
-			wait(canwrite);
-	cs:		printf("Writer %d in critical\n", _pid);
-	//		food = food + NR;
-			signal(canwrite);
-
-			wait(wmutex);
-			writers--;
-			if
-			:: writers == 0 -> signal(canread);
-			:: else -> skip;
-			fi;
-			signal(wmutex);
-			printf("Writer %d out critical\n", _pid);
-		od
-	}
-
-	active [NR] proctype R()
-	{
-		do ::
-	//		food > 0;
-			wait(canread);
-			wait(rmutex);
-			readers++;
-			if
-			:: readers == 1 -> wait(canwrite);
-			:: else -> skip;
-			fi;
-			signal(rmutex);
-			signal(canread);
-
-	cs:		printf("Reader %d in critical\n", _pid);
-	//		food = food - NR;
-
-			wait(rmutex);
-			readers--;
-			if
-			:: readers == 0 -> signal(canwrite);
-			:: else -> skip;
-			fi;
-			signal(rmutex);
-			printf("Reader %d out critical\n", _pid);
-
-		od
-	}
-
-Prueba de deadlock.
-
-	$ spin -a wr.pml
-	$ gcc -o pan pan.c
-	$ ./pan
+	$ ./deadlock wr.pml
 	hint: this search is more efficient if pan.c is compiled -DSAFETY
-
-	(Spin Version 6.4.3 -- 16 December 2014)
-		+ Partial Order Reduction
-
-	Full statespace search for:
-		never claim         	- (none specified)
-		assertion violations	+
-		acceptance   cycles 	- (not selected)
-		invalid end states	+
-
 	State-vector 44 byte, depth reached 1005, errors: 0
-	     2112 states, stored
-	     3189 states, matched
-	     5301 transitions (= stored+matched)
-		0 atomic steps
-	hash conflicts:        24 (resolved)
 
-	Stats on memory usage (in Megabytes):
-	    0.145	equivalent memory usage for states (stored*(State-vector +
-	overhead))
-	    0.282	actual memory usage for states
-	  128.000	memory used for hash table (-w24)
-	    0.534	memory used for DFS stack (-m10000)
-	  128.730	total actual memory usage
+El resultado es de 0 errores, por lo que no hay deadlock.
 
+2.2 Safety
+==========
 
-	unreached in proctype W
-		wr.pml:39, state 42, "-end-"
-		(1 of 42 states)
-	unreached in proctype R
-		wr.pml:67, state 42, "-end-"
-		(1 of 42 states)
+Para esta solución, las pruebas de seguridad siguen siendo las mismas que en la 
+solución anterior.
 
-	pan: elapsed time 0.01 seconds
-
-No se producen bloqueos.
-
-Pruebas de "safety".
-
-Para los escritores:
-
-	$ spin -a -f '! ( [] ! (canwrite < 0))' wr.pml
-	$ gcc -DSAFETY -o pan pan.c
-	$ ./pan
-	warning: never claim + accept labels requires -a flag to fully verify
-	warning: for p.o. reduction to be valid the never claim must be
-	stutter-invariant
-	(never claims generated from LTL formulae are stutter-invariant)
-
-	(Spin Version 6.4.3 -- 16 December 2014)
-		+ Partial Order Reduction
-
-	Full statespace search for:
-		never claim         	+ (never_0)
-		assertion violations	+ (if within scope of claim)
-		cycle checks       	- (disabled by -DSAFETY)
-		invalid end states	- (disabled by never claim)
-
+	$ ./safety wr.pml
+	![]!(W[0]@cs && W[1]@cs)
 	State-vector 52 byte, depth reached 2011, errors: 0
-	     2112 states, stored
-	     3189 states, matched
-	     5301 transitions (= stored+matched)
-		0 atomic steps
-	hash conflicts:        59 (resolved)
 
-	Stats on memory usage (in Megabytes):
-	    0.161	equivalent memory usage for states (stored*(State-vector +
-	overhead))
-	    0.281	actual memory usage for states
-	  128.000	memory used for hash table (-w24)
-	    0.534	memory used for DFS stack (-m10000)
-	  128.730	total actual memory usage
+	![]!(W@cs && R@cs)
+	State-vector 52 byte, depth reached 1453, errors: 0
+
+	![]<>(R[2]@cs && R[3]@cs)
+	State-vector 52 byte, depth reached 1671, errors: 0
+
+No se produce ningún error, por lo tanto todas las condiciones de seguridad 
+siguen cumpliéndose en esta solución también.
 
 
-	unreached in proctype W
-		wr.pml:39, state 42, "-end-"
-		(1 of 42 states)
-	unreached in proctype R
-		wr.pml:67, state 42, "-end-"
-		(1 of 42 states)
-	unreached in claim never_0
-		wr.pml.nvr:10, state 10, "-end-"
-		(1 of 10 states)
+2.3 Liveness
+============
 
-	pan: elapsed time 0.01 seconds
+De igual forma que antes, se comprueban las mismas condiciones de viveza.
 
-Para los lectores:
+	$ ./liveness wr.pml
+	![]<>(R@cs)
+	State-vector 52 byte, depth reached 449, errors: 1
+	Error log: wr.pml.428767635
 
-	$ spin -a -f '! ( [] ! (canread < 0))' wr.pml
-	$ gcc -DSAFETY -o pan pan.c
-	$ ./pan
+	![]<>(W@cs)
+	State-vector 52 byte, depth reached 1432, errors: 1
+	Error log: wr.pml.041073000
+
+Ambas fallan, obteniendo el mismo resultado que en la solución anterior.
+
+En el primer caso, wr.pml.428767635 muestra un bucle:
+
+...
+338:    proc  0 (W) wr.pml:25 (state 17)        [((canwrite>0))]
+338:    proc  0 (W) wr.pml:25 (state 18)        [canwrite = (canwrite-1)]
+  <<<<<START OF CYCLE>>>>>
+	  Writer 0 in critical
+340:    proc  0 (W) wr.pml:26 (state 21)        [printf('Writer %d in 
+	critical\\n',_pid)]
+342:    proc  1 (W) wr.pml:30 (state 28)        [writers = (writers-1)]
+344:    proc  1 (W) wr.pml:33 (state 32)        [else]
+346:    proc  1 (W) wr.pml:33 (state 33)        [(1)]
+348:    proc  1 (W) wr.pml:35 (state 36)        [wmutex = (wmutex+1)]
+...
+
+En el que ambos escritores acceden continuamente a la sección crítica, 
+impidiendo que los lectores puedan acceder.
+
+De forma similar, en wr.pml.041073000:
+
+1396:   proc  1 (W) wr.pml:26 (state 21)        [printf('Writer %d in 
+	critical\\n',_pid)]
+1398:   proc  1 (W) wr.pml:27 (state 22)        [canwrite = (canwrite+1)]
+  <<<<<START OF CYCLE>>>>>
+1400:   proc  1 (W) wr.pml:29 (state 24)        [((wmutex>0))]
+1400:   proc  1 (W) wr.pml:29 (state 25)        [wmutex = (wmutex-1)]
+1402:   proc  1 (W) wr.pml:30 (state 28)        [writers = (writers-1)]
+1404:   proc  1 (W) wr.pml:33 (state 32)        [else]
+1406:   proc  1 (W) wr.pml:33 (state 33)        [(1)]
+1408:   proc  1 (W) wr.pml:35 (state 36)        [wmutex = (wmutex+1)]
+	      Writer 1 out critical
+1410:   proc  1 (W) wr.pml:36 (state 38)        [printf('Writer %d out 
+	critical\\n',_pid)]
+1412:   proc  1 (W) wr.pml:17 (state 1) [((wmutex>0))]
+1412:   proc  1 (W) wr.pml:17 (state 2) [wmutex = (wmutex-1)]
+1414:   proc  1 (W) wr.pml:18 (state 5) [writers = (writers+1)]
+1416:   proc  1 (W) wr.pml:21 (state 11)        [else]
+1418:   proc  1 (W) wr.pml:21 (state 12)        [(1)]
+1420:   proc  1 (W) wr.pml:23 (state 15)        [wmutex = (wmutex+1)]
+1422:   proc  1 (W) wr.pml:25 (state 17)        [((canwrite>0))]
+1422:   proc  1 (W) wr.pml:25 (state 18)        [canwrite = (canwrite-1)]
+	      Writer 1 in critical
+1424:   proc  1 (W) wr.pml:26 (state 21)        [printf('Writer %d in 
+	critical\\n',_pid)]
+1426:   proc  1 (W) wr.pml:27 (state 22)        [canwrite = (canwrite+1)]
+spin: trail ends after 1426 steps
+#processes: 4
+
+Un escritor se mantiene continuamente en la zona crítica acaparando la 
+ejecución, impidiendo que el otro escritor pueda acceder. Y también algún 
+lector.
+
+3. Conclusiones
+===============
+
+Ambas soluciones verifican la ausencia de bloqueos 'deadlock' y la exclusión 
+mútua. Sin embargo no garantizan la ausencia de 'starvation', esto es, que 
+existe el caso en el que un proceso (o más) nunca puedan acceder a la sección 
+crítica.
+
+Si bien, en condiciones de igualdad, en la que todos los procesos tienen la 
+misma probabilidad de ser elegidos para continuar el hilo de la ejecución, todos 
+los procesos tendrán la misma probabilidad de acceder a la zona crítica (tras 
+emplear only_one).
+
+Aún así, no garantiza que no se produzca 'starvation'.
+
+Para evitarlo, se propone una solución en la que los procesos escritores 
+producen un bien, en este caso un contador de alimento (food). Y los lectores 
+conumen ese bien. De esta forma se erradica la ejecución infinita de lectores o 
+escritores.
+
+Con esta solución, se garantiza que siempre sea posible que al menos un escritor 
+y un lector puedan ejecutarse en un punto futuro. 
+
+Para comprobar esta solución, se propone un sólo escritor y un sólo lector:
+
+	$ ./liveness rw2.pml
+
+	![]<>(R@cs)
+	State-vector 36 byte, depth reached 59, errors: 0
+	OK
+
+	![]<>(W@cs)
+	State-vector 36 byte, depth reached 59, errors: 0
+	OK
+
+No se produce starvation. Para más de un proceso sí ocurre.
+
+Para conseguir que varias procesos puedan ejecutarse, es necesario añadir otra 
+restricción. Una posible solución, pese a ser muy restrictiva, consigue paliar 
+estos problemas.
+
+Consiste en permitir la ejecución de cada proceso, sólo de forma secuencial, 
+esto en, primero el escritor 0, luego el 1... De esta forma garantiza que todos 
+los procesos se ejecutarán siempre.
+
+Para comprobarlo, se vuelven a pasar todas las pruebas anteriores:
+
+	$ ./test rw2.pml
+	
+	# DEADLOCK
+	
+	hint: this search is more efficient if pan.c is compiled -DSAFETY
+	State-vector 52 byte, depth reached 121, errors: 0
+	
+	# SAFETY
+	
+	![]!(W[0]@cs && W[1]@cs)
 	warning: never claim + accept labels requires -a flag to fully verify
-	warning: for p.o. reduction to be valid the never claim must be
-	stutter-invariant
-	(never claims generated from LTL formulae are stutter-invariant)
+	hint: this search is more efficient if pan.c is compiled -DSAFETY
+	State-vector 60 byte, depth reached 243, errors: 0
+	
+	![]!(W@cs && R@cs)
+	warning: never claim + accept labels requires -a flag to fully verify
+	hint: this search is more efficient if pan.c is compiled -DSAFETY
+	State-vector 60 byte, depth reached 243, errors: 0
+	
+	![]<>(R[2]@cs && R[3]@cs)
+	warning: never claim + accept labels requires -a flag to fully verify
+	hint: this search is more efficient if pan.c is compiled -DSAFETY
+	State-vector 60 byte, depth reached 501, errors: 0
+	
+	# LIVENESS
+	
+	![]<>(R@cs)
+	State-vector 60 byte, depth reached 453, errors: 0
+	OK
+	
+	![]<>(W@cs)
+	State-vector 60 byte, depth reached 453, errors: 0
+	OK
 
-	(Spin Version 6.4.3 -- 16 December 2014)
-		+ Partial Order Reduction
+Todas las pruebas se pasan satisfactoriamente. En el caso de la segunda 
+solución, se realiza el mismo procedimiento. Y posteriormente se comprueba de 
+nuevo:
+	$ ./test wr2.pml
+	
+	# DEADLOCK
+	
+	hint: this search is more efficient if pan.c is compiled -DSAFETY
+	State-vector 60 byte, depth reached 396, errors: 0
+	
+	# SAFETY
+	
+	![]!(W[0]@cs && W[1]@cs)
+	warning: never claim + accept labels requires -a flag to fully verify
+	hint: this search is more efficient if pan.c is compiled -DSAFETY
+	State-vector 68 byte, depth reached 793, errors: 0
+	
+	![]!(W@cs && R@cs)
+	warning: never claim + accept labels requires -a flag to fully verify
+	hint: this search is more efficient if pan.c is compiled -DSAFETY
+	State-vector 68 byte, depth reached 793, errors: 0
+	
+	![]<>(R[2]@cs && R[3]@cs)
+	warning: never claim + accept labels requires -a flag to fully verify
+	hint: this search is more efficient if pan.c is compiled -DSAFETY
+	State-vector 68 byte, depth reached 793, errors: 0
+	
+	# LIVENESS
+	
+	![]<>(R@cs)
+	State-vector 68 byte, depth reached 1361, errors: 0
+	OK
+	
+	![]<>(W@cs)
+	State-vector 68 byte, depth reached 1361, errors: 0
+	OK
 
-	Full statespace search for:
-		never claim         	+ (never_0)
-		assertion violations	+ (if within scope of claim)
-		cycle checks       	- (disabled by -DSAFETY)
-		invalid end states	- (disabled by never claim)
-
-	State-vector 52 byte, depth reached 2011, errors: 0
-	     2112 states, stored
-	     3189 states, matched
-	     5301 transitions (= stored+matched)
-		0 atomic steps
-	hash conflicts:        59 (resolved)
-
-	Stats on memory usage (in Megabytes):
-	    0.161	equivalent memory usage for states (stored*(State-vector +
-	overhead))
-	    0.281	actual memory usage for states
-	  128.000	memory used for hash table (-w24)
-	    0.534	memory used for DFS stack (-m10000)
-	  128.730	total actual memory usage
-
-
-	unreached in proctype W
-		wr.pml:39, state 42, "-end-"
-		(1 of 42 states)
-	unreached in proctype R
-		wr.pml:67, state 42, "-end-"
-		(1 of 42 states)
-	unreached in claim never_0
-		wr.pml.nvr:10, state 10, "-end-"
-		(1 of 10 states)
-
-	pan: elapsed time 0.01 seconds
-
-No se producen bloqueos.
+Las dos soluciones pasan ahora todas las pruebas realizadas. Se encuentran en 
+rw2.pml y wr2.pml.

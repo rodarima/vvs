@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# To check the absence of deadlocks and that assertions are always satisfied (in
+# any execution path) use:
+#
+#	spin -a file.pml
+#	gcc -o pan pan.c
+#	pan
+
+./spin -a "$1"
+gcc -o pan pan.c
+./pan | grep errors
