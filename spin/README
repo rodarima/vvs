@@ -1,7 +1,16 @@
 2015A25
 
+Rodrigo Arias Mallo <rodrigo.arias@udc.es>
+
+El objetivo de esta práctica en emplear spin para detectar errores en programas 
+multiproceso, así cmo garantizar el cumplimiento de algunas condiciones.
+
+Se plantean dos soluciones del conocido problema de escritores y lectores. En 
+general se hará uso de scripts en bash para automatizar las pruebas.
+
 1. Prioridad para los lectores
 ==============================
+El código se encuentra en rw.pml
 
 1.1 Deadlock
 ============
@@ -158,109 +167,9 @@ escritor sí consigue entrar:
 
 Pero el otro escritor nunca lo consigue.
 
-
-
-Parece que el escritor acapara el hilo de ejecución siempre. Voy a realizar una
-modificación en el código para que esto no suceda. Añado la variable comida,
-que impide que un lector pueda acceder a la sección crítica si no hay comida
-(tiene que entrar un escritor). Si no hay comida, el escritor la incrementa.
-
-	#define NR	1
-	#define NW	1
-
-	#define wait(s) { atomic { s > 0; s-- } }
-	#define signal(s) { s++ }
-
-	byte canwrite = 1;
-	byte rmutex = 1;
-	byte readers = 0;
-	int food = 0;
-
-	active [NW] proctype W()
-	{
-		do ::
-			food == 0;
-			wait(canwrite);
-	cs:		printf("Writer %d in critical\n", _pid);
-			food = food + NR;
-			signal(canwrite)
-			printf("Writer %d out critical\n", _pid);
-		od
-	}
-
-	active [NR] proctype R()
-	{
-		do ::
-			food > 0;
-			wait(rmutex);
-			readers++;
-			if
-			:: readers == 1 -> wait(canwrite);
-			:: else -> skip;
-			fi;
-			signal(rmutex);
-
-	cs:		printf("Reader %d in critical\n", _pid);
-			food = food - NR;
-
-			wait(rmutex);
-			readers--;
-			if
-			:: readers == 0 -> signal(canwrite);
-			:: else -> skip;
-			fi;
-			signal(rmutex)
-			printf("Reader %d out critical\n", _pid);
-
-		od
-	}
-
-Ahora vuelvo a comprobar si no se producen errores.
-
-	./pan -a -f -i
-	warning: -i or -I work for safety properties only
-	warning: for p.o. reduction to be valid the never claim must be stutter-invariant
-	(never claims generated from LTL formulae are stutter-invariant)
-
-	(Spin Version 6.4.3 -- 16 December 2014)
-		+ Partial Order Reduction
-
-	Full statespace search for:
-		never claim         	+ (never_0)
-		assertion violations	+ (if within scope of claim)
-		acceptance   cycles 	+ (fairness enabled)
-		invalid end states	- (disabled by never claim)
-
-	State-vector 36 byte, depth reached 59, errors: 0
-	       85 states, stored (172 visited)
-	      135 states, matched
-	      307 transitions (= visited+matched)
-		0 atomic steps
-	hash conflicts:         0 (resolved)
-
-	Stats on memory usage (in Megabytes):
-	    0.005	equivalent memory usage for states (stored*(State-vector + overhead))
-	    0.285	actual memory usage for states
-	  128.000	memory used for hash table (-w24)
-	    0.534	memory used for DFS stack (-m10000)
-	  128.730	total actual memory usage
-
-
-	unreached in proctype W
-		rw.pml:22, state 14, "-end-"
-		(1 of 14 states)
-	unreached in proctype R
-		rw.pml:49, state 38, "-end-"
-		(1 of 38 states)
-	unreached in claim never_0
-		rw.pml.nvr:12, state 13, "-end-"
-		(1 of 13 states)
-
-	pan: elapsed time 0 seconds
-
-
 2. Prioridad para los escritores
 ================================
+El código está en wr.pml
 
 2.1 Deadlock
 ============
@@ -372,14 +281,14 @@ crítica.
 Si bien, en condiciones de igualdad, en la que todos los procesos tienen la 
 misma probabilidad de ser elegidos para continuar el hilo de la ejecución, todos 
 los procesos tendrán la misma probabilidad de acceder a la zona crítica (tras 
-emplear only_one).
+realizar el cambio de añadir el mutex only_one).
 
 Aún así, no garantiza que no se produzca 'starvation'.
 
 Para evitarlo, se propone una solución en la que los procesos escritores 
 producen un bien, en este caso un contador de alimento (food). Y los lectores 
-conumen ese bien. De esta forma se erradica la ejecución infinita de lectores o 
-escritores.
+consumen ese bien. De esta forma se erradica la ejecución infinita de lectores o 
+escritores. El problema se asemeja al de productores/consumidores.
 
 Con esta solución, se garantiza que siempre sea posible que al menos un escritor 
 y un lector puedan ejecutarse en un punto futuro. 
@@ -403,7 +312,7 @@ restricción. Una posible solución, pese a ser muy restrictiva, consigue paliar
 estos problemas.
 
 Consiste en permitir la ejecución de cada proceso, sólo de forma secuencial, 
-esto en, primero el escritor 0, luego el 1... De esta forma garantiza que todos 
+esto es, primero el escritor 0, luego el 1... De esta forma garantiza que todos 
 los procesos se ejecutarán siempre.
 
 Para comprobarlo, se vuelven a pasar todas las pruebas anteriores:
