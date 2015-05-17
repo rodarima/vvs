@@ -1,0 +1,41 @@
+gcd1  % [ parameters ]
+		: THEORY
+
+  BEGIN
+
+  % ASSUMING
+   % assuming declarations
+  % ENDASSUMING
+
+  a,b,c: VAR nat
+
+  divide(a, b) : bool
+      = (EXISTS (k: nat): b = a*k) 
+
+   gcd(a, b) : RECURSIVE nat = 
+     IF a = b THEN a 
+     ELSE
+       IF (a > b) THEN gcd(a-b, b)
+       ELSE gcd(a, b-a) 
+       ENDIF
+     ENDIF
+   MEASURE a+b
+
+  th1: LEMMA gcd(a, a) = a
+  th2: LEMMA gcd(a, 2*a) = a
+
+  th24: LEMMA (FORALL (a,b): divide(a, b) IMPLIES
+  	(FORALL (c): divide(a, b*c)))
+
+  th25: LEMMA (FORALL (a, b, c):
+  	divide(a, b) AND divide(b, c)
+	IMPLIES divide(a, c))
+
+  th26: LEMMA (FORALL (a, b, c) :
+  	divide(a, b) AND divide(a, c)
+  	IMPLIES	(FORALL (r, s:nat) : divide(a, (b*r + c*s))))
+
+  th35: LEMMA (EXISTS (x,y:nat) : gcd(a, b) = a*x + b*y)
+
+
+  END gcd1
